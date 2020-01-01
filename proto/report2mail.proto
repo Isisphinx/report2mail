@@ -1,0 +1,21 @@
+syntax = "proto3";
+package proto;
+
+message EmailToSend {
+	string email_address = 1;
+	string lastname = 2;
+	string firstname = 3;
+	string date = 4;
+	string office = 5;
+	string filename = 6;
+	bytes pdf_payload = 7;
+};
+
+message SentStatus {
+	string status = 1;
+}
+
+service ReportToEmail {
+	rpc SendEmail (EmailToSend) returns (SentStatus);
+}
+
