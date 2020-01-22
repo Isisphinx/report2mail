@@ -1,0 +1,5 @@
+cert:  |
+  -----BEGIN CERTIFICATE-----
+  <x509 base64 encoded certificate authority>
+  -----END CERTIFICATE-----
+serverAddr: 127.0.0.1:51000
