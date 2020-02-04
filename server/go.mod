@@ -9,5 +9,3 @@ require (
 	github.com/spf13/viper v1.6.1
 	google.golang.org/grpc v1.25.1
 )
-
-replace github.com/isisphinx/report2mail/proto => ../proto
