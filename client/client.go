@@ -34,9 +34,22 @@ func init() {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
+	viper.BindEnv("cert")
+	viper.BindEnv("serverAddr")
 	err := viper.ReadInConfig()
-	if err != nil {
+	switch err.(type) {
+	case nil:
+		break
+	case viper.ConfigFileNotFoundError:
+		log.Debug("No config file found.")
+	default:
 		panic(fmt.Errorf("fatal error config file: %s", err))
+	}
+	if viper.Get("serverAddr") == nil {
+		log.Fatal("no serverAddr in conf or env")
+	}
+	if viper.Get("cert") == nil {
+		log.Fatal("no cert in conf or env")
 	}
 
 	// setup logger config
@@ -47,7 +60,6 @@ func init() {
 }
 
 func main() {
-	fmt.Println(os.Args)
 	if len(os.Args) != 2 {
 		fmt.Println("Program arguments")
 		for i := 0; i < len(os.Args); i += 1 {
