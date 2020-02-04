@@ -19,33 +19,79 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"gopkg.in/go-playground/validator.v9"
+	"gopkg.in/yaml.v2"
 )
 
-type reportToEmailServer struct {}
+type reportToEmailServer struct {
+	Conf config
+}
+
+type config struct {
+	SMTP struct {
+		Server   string `validate:"required"`
+		Port     string `validate:"required"`
+		Username string `validate:"required"`
+		Password string `validate:"required"`
+	}
+	GRPCport int `validate:"required"`
+	Email    struct {
+		Sender       string `validate:"required"`
+		Subject      string `validate:"required"`
+		TemplateName string `validate:"required"`
+	}
+}
+
+var server reportToEmailServer
 
 func init() {
+	// setup logger config
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
+
 	// retrieve config from config file designated by env.var
 	configName := os.Getenv("GO_ENV")
 	viper.SetConfigName(configName)
 	viper.AddConfigPath("./config")
 	viper.SetConfigType("yaml")
 	err := viper.ReadInConfig()
-	if err != nil {
+	switch err.(type) {
+	case nil:
+		break
+	case viper.ConfigFileNotFoundError:
+		log.Debug("No config file found.")
+	default:
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
-	// setup logger config
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
+	conf := config{}
+	viper.UnmarshalExact(&conf)
+
+	viper.SetEnvPrefix("R2M")
+	viper.BindEnv("conf")
+	err = yaml.UnmarshalStrict([]byte(viper.GetString("conf")), &conf)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%v\n", conf)
+
+	err = validateConf(&conf)
+	if err != nil {
+		log.WithError(err).Fatal("Bad configuration")
+	}
+	server = reportToEmailServer{
+		Conf: conf,
+	}
 }
 
 func main() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", viper.GetInt("grpc.port")))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", server.Conf.GRPCport))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	log.Infof("server listening on %d", viper.GetInt("grpc.port"))
+	log.Infof("server listening on %d", server.Conf.GRPCport)
 
 	creds, err := credentials.NewServerTLSFromFile("service.pem", "service.key")
 	if err != nil {
@@ -77,7 +123,7 @@ func (server *reportToEmailServer) SendEmail(ctx context.Context, inEmail *proto
 
 // render template into email body
 func generateEmailBody(email2send *proto.EmailToSend) (string, error) {
-	file, err := os.Open(path.Join("emailTemplates", viper.GetString("email.templateName")))
+	file, err := os.Open(path.Join("emailTemplates", server.Conf.Email.TemplateName))
 	if err != nil {
 		log.WithError(err).Error("could not open template file")
 		return "", err
@@ -108,17 +154,17 @@ func generateEmailBody(email2send *proto.EmailToSend) (string, error) {
 // actually send the email
 func handleMailSending(emailData *proto.EmailToSend, emailBody string) error {
 	e := email.NewEmail()
-	e.From = viper.GetString("email.sender")
+	e.From = server.Conf.Email.Sender
 	e.To = []string{emailData.GetEmailAddress()}
-	e.Subject = viper.GetString("email.subject")
+	e.Subject = server.Conf.Email.Subject
 	e.Text = []byte(emailBody)
 
 	fileBuffer := bytes.NewBuffer(emailData.PdfPayload)
 	e.Attach(fileBuffer, emailData.Filename, "application/pdf")
 
-	auth := smtp.PlainAuth("", viper.GetString("smtp.username"), viper.GetString("smtp.password"), viper.GetString("smtp.server"))
+	auth := smtp.PlainAuth("", server.Conf.SMTP.Username, server.Conf.SMTP.Password, server.Conf.SMTP.Server)
 	// TODO next line, get from config
-	err := e.Send("smtp.gmail.com:587", auth)
+	err := e.Send(fmt.Sprintf("%s:%s", server.Conf.SMTP.Server, server.Conf.SMTP.Port), auth)
 	if err != nil {
 		log.WithError(err).Error("mail sending failed")
 		return err
@@ -153,4 +199,25 @@ func formatDate(indate string) (string, error) {
 			parsed.Format("2006"),
 		}, " "), nil
 
+}
+
+func validateConf(conf *config) error {
+	validate := validator.New()
+
+	err := validate.Struct(conf)
+	if err != nil {
+
+		// check errors in validator
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			log.WithError(err).Error("Validator error")
+			return err
+		}
+
+		// display struct validation errors
+		for _, err := range err.(validator.ValidationErrors) {
+			log.Errorf("ValidationError for field: %s, reason: %s\n", err.Namespace(), err.Tag())
+		}
+		return err
+	}
+	return nil
 }
