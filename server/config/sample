@@ -1,0 +1,12 @@
+smtp:
+  server: "smtp.example.com"
+  port: "587"
+  username: "johndoe@example.com"
+  password: "sample_password"
+grpc:
+  port: 51000
+email:
+  sender: "John Doe <johndoe@example.com>"
+  subject: "Email Subject"
+  templateName: "template_french.txt"
+  

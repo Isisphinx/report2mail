@@ -1,0 +1,4 @@
+{{ .Firstname }} {{ .Lastname }},
+Vous trouverez ci-joint le compte-rendu d’imagerie médicale effectué le {{ .Date }}.
+Sincèrement, 
+{{ .Office }}
