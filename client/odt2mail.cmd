@@ -6,6 +6,8 @@ set email=%4
 set reportPath=%5
 set InstitutionName=MyFacility
 for %%F in (%reportPath%) do set fileName=%%~nxF
-echo %fileName:~0,-4%
 <Path to >soffice.exe --headless --convert-to pdf %reportPath%
 report2mail.exe "{\"emailAddress\":\"%email%\",\"firstname\":\"%fname%\",\"lastname\":\"%lname%\",\"date\":\"%studyDate%\",\"office\":\"%InstitutionName%\",\"fileLocation\":\"report.pdf\"}" >> log.txt
+
+REM %~n1 Expand %1 to a file Name without file extension or path
+REM %fileName:~0,-4%
