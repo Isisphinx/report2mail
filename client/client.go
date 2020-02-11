@@ -34,7 +34,6 @@ func init() {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.BindEnv("cert")
 	viper.BindEnv("serverAddr")
 	err := viper.ReadInConfig()
 	switch err.(type) {
@@ -47,9 +46,6 @@ func init() {
 	}
 	if viper.Get("serverAddr") == nil {
 		log.Fatal("no serverAddr in conf or env")
-	}
-	if viper.Get("cert") == nil {
-		log.Fatal("no cert in conf or env")
 	}
 
 	// setup logger config
@@ -81,17 +77,19 @@ func main() {
 	}
 
 	// prepare connection and client
-	b := viper.GetString("cert") // CA cert
-	cp := x509.NewCertPool()
-	if !cp.AppendCertsFromPEM([]byte(b)) {
-		panic("credentials: failed to append certificates")
-	}
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: false,
-		RootCAs:            cp,
+	var creds credentials.TransportCredentials
+	sysCerts, err := x509.SystemCertPool()
+	if err != nil {
+		log.Errorf("failed to load system certificates: %v. Fallback to skipVerify", err)
+		config := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		creds = credentials.NewTLS(config)
+	} else {
+		creds = credentials.NewClientTLSFromCert(sysCerts, "")
 	}
 
-	conn, err := grpc.Dial(viper.GetString("serverAddr"), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	conn, err := grpc.Dial(viper.GetString("serverAddr"), grpc.WithTransportCredentials(creds))
 	if err != nil {
 		log.WithError(err).Fatal("Cannot reach server")
 	}
