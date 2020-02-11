@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"google.golang.org/grpc/credentials"
 	"net"
 	"net/smtp"
 	"os"
@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"gopkg.in/go-playground/validator.v9"
-	"gopkg.in/yaml.v2"
 )
 
 type reportToEmailServer struct {
@@ -66,16 +65,18 @@ func init() {
 	}
 
 	conf := config{}
+	viper.BindEnv("PORT")
+	conf.GRPCport = viper.GetInt("PORT")
 	viper.UnmarshalExact(&conf)
 
 	viper.SetEnvPrefix("R2M")
 	viper.BindEnv("conf")
-	err = yaml.UnmarshalStrict([]byte(viper.GetString("conf")), &conf)
-	if err != nil {
-		panic(err)
+	if len(viper.GetString("conf")) > 0 {
+		err = json.Unmarshal([]byte(viper.GetString("conf")), &conf)
+		if err != nil {
+			panic(err)
+		}
 	}
-
-	fmt.Printf("%v\n", conf)
 
 	err = validateConf(&conf)
 	if err != nil {
@@ -87,18 +88,13 @@ func init() {
 }
 
 func main() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", server.Conf.GRPCport))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", server.Conf.GRPCport))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	log.Infof("server listening on %d", server.Conf.GRPCport)
 
-	creds, err := credentials.NewServerTLSFromFile("service.pem", "service.key")
-	if err != nil {
-		log.Fatalf("Failed to setup TLS: %v", err)
-	}
-
-	grpcServer := grpc.NewServer(grpc.Creds(creds))
+	grpcServer := grpc.NewServer()
 	proto.RegisterReportToEmailServer(grpcServer, &reportToEmailServer{})
 	// determine whether to use TLS
 	grpcServer.Serve(lis)
