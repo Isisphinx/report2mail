@@ -108,6 +108,7 @@ func (server *reportToEmailServer) SendEmail(ctx context.Context, inEmail *proto
 		log.WithField("filename", inEmail.Filename).WithError(err).Error("Failed to generate body")
 		return nil, err
 	}
+
 	err = handleMailSending(inEmail, body)
 	if err != nil {
 		log.WithField("filename", inEmail.Filename).WithError(err).Error("Failed to send email")
@@ -184,7 +185,7 @@ func formatDate(indate string) (string, error) {
 		"décembre",
 	}
 
-	informat := "2006-01-02"
+	informat := "02012006"
 	parsed, err := time.Parse(informat, indate)
 	if err != nil {
 		return "", err
