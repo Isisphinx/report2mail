@@ -15,26 +15,15 @@ This application is intended to run on Windows. Use the following line to cross 
 GOOS=windows GOARCH=amd64 go build -o report2mail.exe
 ```
 
-## config
-
-The program is looking for a YAML config file named `config` located in the same folder as the executable.  
-
-``` yaml
-cert: |
-  -----BEGIN CERTIFICATE-----
-  <x509 base64 encoded certificate authority>
-  -----END CERTIFICATE-----
-serverAddr: <IP>:<Port>
-
-```
-
 ## usage
 
 ``` bash
 # on *nix
-./report2mail '{"emailAddress":"recipient@example.com","firstname":"Jean","lastname":"Test","date":"2019-12-08","office":"District Medical Imagery","fileLocation":"report.pdf"}'
+SERVERADDR="127.0.0.1:51000" TOKEN="AuthToken" ./report2mail '{"emailAddress":"recipient@example.com","firstname":"Jean","lastname":"Test","date":"2019-12-08","office":"District Medical Imagery","fileLocation":"report.pdf"}'
 
 # on Windows (in cmd.exe only)
+set SERVERADDR=127.0.0.1:51000
+set TOKEN=authToken
 # escaping double-quotes inside json payload is required
 report2mail.exe "{\"emailAddress\":\"recipient@example.com\",\"firstname\":\"Jean\",\"lastname\":\"Test\",\"date\":\"2019-12-08\",\"office\":\"District Medical Imagery\",\"fileLocation\":\"report.pdf\"}"
 ```
