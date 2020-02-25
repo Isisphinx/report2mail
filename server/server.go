@@ -19,6 +19,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"gopkg.in/go-playground/validator.v9"
 )
 
@@ -34,6 +37,7 @@ type config struct {
 		Password string `validate:"required"`
 	}
 	GRPCport int `validate:"required"`
+	Tokens map[string]string `validate:"required"`
 	Email    struct {
 		Sender       string `validate:"required"`
 		Subject      string `validate:"required"`
@@ -77,6 +81,15 @@ func init() {
 			panic(err)
 		}
 	}
+	tokens := make(map[string]string, 1)
+	viper.BindEnv("tokens")
+	if len(viper.GetString("tokens")) > 0 {
+		err = json.Unmarshal([]byte(viper.GetString("tokens")), &tokens)
+		if err != nil {
+			panic(err)
+		}
+		conf.Tokens = tokens
+	}
 
 	err = validateConf(&conf)
 	if err != nil {
@@ -95,7 +108,7 @@ func main() {
 	log.Infof("server listening on %d", server.Conf.GRPCport)
 
 	grpcServer := grpc.NewServer()
-	proto.RegisterReportToEmailServer(grpcServer, &reportToEmailServer{})
+	proto.RegisterReportToEmailServer(grpcServer, &server)
 	// determine whether to use TLS
 	grpcServer.Serve(lis)
 }
@@ -103,6 +116,22 @@ func main() {
 // SendEmail Handle gRPC request
 func (server *reportToEmailServer) SendEmail(ctx context.Context, inEmail *proto.EmailToSend) (*proto.SentStatus, error) {
 
+	// check auth token in request metadata
+	mds, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		panic(ok)
+	}
+	tokenMd, ok := mds["token"]
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "token not found")
+	}
+	token := tokenMd[0]
+	if _, ok := server.Conf.Tokens[token]; ! ok {
+		return nil, status.Error(codes.PermissionDenied, "bad token")
+	}
+
+	// every auth token is bound with an office
+	inEmail.Office = server.Conf.Tokens[token]
 	body, err := generateEmailBody(inEmail)
 	if err != nil {
 		log.WithField("filename", inEmail.Filename).WithError(err).Error("Failed to generate body")

@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	_ "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"gopkg.in/go-playground/validator.v9"
 )
 
@@ -25,7 +25,6 @@ type jsonInput struct {
 	Lastname     string `json:"lastname" validate:"required"`
 	Firstname    string `json:"firstname" validate:"required"`
 	Date         string `json:"date" validate:"required"`
-	Office       string `json:"office" validate:"required"`
 	FileLocation string `json:"filelocation" validate:"required"`
 }
 
@@ -35,6 +34,7 @@ func init() {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.BindEnv("serverAddr")
+	viper.BindEnv("token")
 	err := viper.ReadInConfig()
 	switch err.(type) {
 	case nil:
@@ -98,14 +98,17 @@ func main() {
 
 	jsonIn.FileLocation = filepath.Base(jsonIn.FileLocation)
 
+	// build header and add token
+	md := metadata.New(map[string]string{"token": viper.GetString("token")})
+	header := metadata.NewOutgoingContext(context.Background(), md)
+
 	log.WithField("filename", jsonIn.FileLocation).Info("Ready to send mail")
 
-	sentStatus, err := client.SendEmail(context.Background(), &proto.EmailToSend{
+	sentStatus, err := client.SendEmail(header, &proto.EmailToSend{
 		EmailAddress: jsonIn.EmailAddress,
 		Lastname:     jsonIn.Lastname,
 		Firstname:    jsonIn.Firstname,
 		Date:         jsonIn.Date,
-		Office:       jsonIn.Office,
 		Filename:     jsonIn.FileLocation,
 		PdfPayload:   fileContent,
 	})
